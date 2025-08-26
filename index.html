@@ -2,30 +2,40 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>掲示板管理者ページ</title>
+<title>万博情報交換所</title>
 <style>
   body { font-family: 'Kosugi Maru', sans-serif; background-color: #f7f7f7; margin: 0; padding: 0; }
-  .container { width: 100%; max-width: 800px; margin: 20px auto; padding: 10px; background-color: #fff; border-radius: 10px; border: 2px solid #ccc; }
-  h1 { text-align: center; color: #ffd700; }
-  .posts { margin-top: 20px; }
-  .post { border-bottom: 1px solid #ddd; padding: 10px; display: flex; justify-content: space-between; align-items: center; }
-  .post-text { flex: 1; margin-left: 10px; }
-  .delete-btn { background-color: #ff4d4d; border: none; color: #fff; padding: 5px 10px; cursor: pointer; border-radius: 5px; }
-  .delete-btn:hover { background-color: #ff1a1a; }
+  .board-container { width: 100%; max-width: 600px; margin: 20px auto; border: 2px solid #ccc; border-radius: 10px; background-color: #fff; display: flex; flex-direction: column; height: 500px; }
+  .board-title { background-color: #39FEE7; color: #333; font-size: 24px; font-weight: bold; text-align: center; padding: 10px; border-top-left-radius: 10px; border-top-right-radius: 10px; }
+  .posts { flex: 1; overflow-y: auto; padding: 10px; }
+  .post { border-bottom: 1px solid #ddd; padding: 5px 0; }
+  .post-author { font-weight: bold; margin-right: 5px; }
+  .post-text { display: inline; }
+  .input-area { padding: 10px; border-top: 1px solid #ccc; display: flex; flex-direction: column; gap: 5px; }
+  .input-area input, .input-area textarea, .input-area button { font-family: 'Kosugi Maru', sans-serif; font-size: 16px; }
+  .input-area input, .input-area textarea { width: 100%; padding: 5px; box-sizing: border-box; border-radius: 5px; border: 1px solid #ccc; }
+  .input-area button { background-color: #39FEE7; border: none; padding: 10px; cursor: pointer; font-weight: bold; border-radius: 5px; }
+  .input-area button:hover { background-color: #ffc000; }
 </style>
 </head>
 <body>
 
-<div class="container">
-  <h1>掲示板管理者ページ</h1>
+<div class="board-container">
+  <div class="board-title">万博情報交換所</div>
   <div class="posts" id="posts"></div>
+  <div class="input-area">
+    <input type="text" id="author" placeholder="あなたの立場（任意：学生、配達員など）">
+    <textarea id="text" rows="2" placeholder="投稿内容を入力"></textarea>
+    <button id="submitBtn">投稿する</button>
+  </div>
 </div>
 
 <script type="module">
+  // Firebase SDKをモジュール版で読み込み
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import { getDatabase, ref, onValue, remove, query, orderByChild } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+  import { getDatabase, ref, push, set, onValue, query, orderByChild } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 
-  // Firebase設定（掲示板と同じ）
+  // Firebase設定
   const firebaseConfig = {
     apiKey: "AIzaSyByFru8zWFZc3Xxx3pfCGSlaXRTrhVB6b0",
     authDomain: "banpakukeijiban.firebaseapp.com",
@@ -39,7 +49,28 @@
   // Firebase初期化
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
+
   const postsDiv = document.getElementById('posts');
+  const authorInput = document.getElementById('author');
+  const textInput = document.getElementById('text');
+  const submitBtn = document.getElementById('submitBtn');
+
+  // 投稿を追加
+  submitBtn.addEventListener('click', () => {
+    const author = authorInput.value.trim();
+    const text = textInput.value.trim();
+    if (!text) { alert("投稿内容を入力してください"); return; }
+
+    const newPostRef = push(ref(db, 'posts'));
+    set(newPostRef, {
+      author: author,
+      text: text,
+      timestamp: Date.now()
+    });
+
+    authorInput.value = '';
+    textInput.value = '';
+  });
 
   // 投稿のリアルタイム取得
   const postsQuery = query(ref(db, 'posts'), orderByChild('timestamp'));
@@ -48,24 +79,15 @@
     const data = snapshot.val();
     if (data) {
       const postsArray = Object.entries(data)
-        .sort((a, b) => b[1].timestamp - a[1].timestamp); // 新しい順
+        .sort((a, b) => b[1].timestamp - a[1].timestamp);
       postsArray.forEach(([key, post]) => {
         const postDiv = document.createElement('div');
         postDiv.className = 'post';
-        const authorText = post.author ? `${post.author}:` : '';
-        postDiv.innerHTML = `<span class="post-text"><strong>${authorText}</strong> ${post.text}</span>`;
-        
-        // 削除ボタン
-        const deleteBtn = document.createElement('button');
-        deleteBtn.textContent = '削除';
-        deleteBtn.className = 'delete-btn';
-        deleteBtn.onclick = () => {
-          if (confirm('本当に削除しますか？')) {
-            remove(ref(db, 'posts/' + key));
-          }
-        };
-
-        postDiv.appendChild(deleteBtn);
+        if (post.author) {
+          postDiv.innerHTML = `<span class="post-author">${post.author}:</span> <span class="post-text">${post.text}</span>`;
+        } else {
+          postDiv.innerHTML = `<span class="post-text">${post.text}</span>`;
+        }
         postsDiv.appendChild(postDiv);
       });
     }
